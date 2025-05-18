@@ -37,7 +37,6 @@ using namespace glm;
 
 // Protótipo da função de callback de teclado
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mode);
-std::string arquivoTextura;
 
 // Protótipos das funções
 int setupShader();
@@ -69,17 +68,25 @@ const GLchar *fragmentShaderSource = R"(
 in vec2 texCoord;
 in vec3 vertexColor;
 uniform sampler2D texBuff;
+uniform int objSelecionado;
 out vec4 color;
 
 void main()
 {
-	vec4 texColor = texture(texBuff, texCoord);
-	color = texColor;
-})";
+    vec4 texColor = texture(texBuff, texCoord);
 
-bool rotateX=false, rotateY=false, rotateZ=false;
-float tamanhoEscala = 1.0f;
-float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+    if (objSelecionado == 1) {
+        texColor.rgb = texColor.rgb * vec3(0.6, 0.6, 1.0);
+    }
+
+	if (objSelecionado == 2) {
+		texColor.rgb = texColor.rgb * vec3(0.6, 0.6, 1.0);
+    }
+
+    color = texColor;
+}
+)";
+
 int objSelecionado = 1;
 
 struct Object
@@ -87,6 +94,10 @@ struct Object
 	GLuint VAO; //Índice do buffer de geometria
 	GLuint texID; //Identificador da textura carregada
 	int nVertices; //nro de vértices
+	glm::mat4 model;
+	float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+	float tamanhoEscala = 1.0f;
+	bool rotateX=false, rotateY=false, rotateZ=false;
 };
 
 struct Material {
@@ -98,6 +109,8 @@ struct Material {
 
 std::unordered_map<std::string, Material> materiais;
 std::string nomeMaterial;
+Object obj;
+Object obj2;
 
 // Função MAIN
 int main()
@@ -106,7 +119,7 @@ int main()
 	glfwInit();
 
 	// Criação da janela GLFW
-	GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Desafio M3 - Rodrigo Korte Mentz", nullptr, nullptr);
+	GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, "Desafio Vivencial 1 - Rodrigo Korte Mentz", nullptr, nullptr);
 	glfwMakeContextCurrent(window);
 
 	// Fazendo o registro da função de callback para a janela GLFW
@@ -133,10 +146,9 @@ int main()
 	GLuint shaderID = setupShader();
 
 	int imgWidth, imgHeight;
-	Object obj;
+
 	obj.VAO = loadSimpleOBJ("../assets/Modelos3D/SuzanneSubdiv1.obj", obj.nVertices);
-	Object obj2;
-	obj2.VAO = loadSimpleOBJ("../assets/Modelos3D/Suzanne.obj", obj.nVertices);
+	obj2.VAO = loadSimpleOBJ("../assets/Modelos3D/Suzanne.obj", obj2.nVertices);
 	
 	Material mat = materiais["Material.001"];
     cout << "Conferir material.textureFile: " << mat.textureFile << endl;
@@ -154,20 +166,21 @@ int main()
 	
 
 	// Matriz de projeção paralela ortográfica
-	mat4 projection = ortho(-3.0, 3.0, -3.0, 3.0, -1.0, 1.0);
+	mat4 projection = ortho(-5.0, 5.0, -5.0, 5.0, -1.0, 1.0);
 	glUniformMatrix4fv(glGetUniformLocation(shaderID, "projection"), 1, GL_FALSE, value_ptr(projection));
 
 	// Matriz de modelo: transformações na geometria (objeto)
 	mat4 model = mat4(1); // matriz identidade
-	mat4 model2 = mat4(1);
-	//glUniformMatrix4fv(glGetUniformLocation(shaderID, "model"), 1, GL_FALSE, value_ptr(model));
 	GLint modelLoc = glGetUniformLocation(shaderID, "model");
-	GLint modelLoc2 = glGetUniformLocation(shaderID, "model");
 	
+	obj.posX = -3.0f;
+	obj.model = glm::translate(obj.model, glm::vec3(obj.posX, obj.posY, obj.posZ));
+
+	obj2.posX = 3.0f;
+	obj2.model = glm::translate(obj2.model, glm::vec3(obj2.posX, obj2.posY, obj2.posZ));
+
 	model = glm::rotate(model, /*(GLfloat)glfwGetTime()*/glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	model2 = glm::rotate(model2, /*(GLfloat)glfwGetTime()*/glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-	glUniformMatrix4fv(modelLoc2, 1, GL_FALSE, glm::value_ptr(model2));
 	glEnable(GL_DEPTH_TEST);
 
 
@@ -183,56 +196,66 @@ int main()
 
 		float angle = (GLfloat)glfwGetTime();
 
-		model = glm::mat4(1); 
-		model2 = glm::mat4(1); 
-		if (rotateX)
+		obj.model = glm::mat4(1.0f);
+		obj.model = glm::translate(obj.model, glm::vec3(obj.posX, obj.posY, obj.posZ));
+		if (obj.rotateX)
 		{
-			if (objSelecionado == 1)
-			{
-				model = glm::rotate(model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
-			}
-			else
-			{
-				model2 = glm::rotate(model2, angle, glm::vec3(1.0f, 0.0f, 0.0f));
-			}
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
 		}
-		else if (rotateY)
+		else if (obj.rotateY)
 		{
-			if (objSelecionado == 1)
-			{
-				model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
-			}
-			else
-			{
-				model2 = glm::rotate(model2, angle, glm::vec3(0.0f, 1.0f, 0.0f));
-			}
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
 		}
-		else if (rotateZ)
+		else if (obj.rotateZ)
 		{
-			if (objSelecionado == 1)
-			{
-				model = glm::rotate(model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
-			}
-			else
-			{
-				model2 = glm::rotate(model2, angle, glm::vec3(0.0f, 0.0f, 1.0f));
-			}
+			obj.model = glm::rotate(obj.model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
 		}
+		obj.model = glm::scale(obj.model, glm::vec3(obj.tamanhoEscala));
 
-		// mover o obj
-		model = glm::translate(model, glm::vec3(posX, posY, posZ));
 
-		// mudar a escala do obj
-		model = glm::scale(model, glm::vec3(tamanhoEscala, tamanhoEscala, tamanhoEscala));
+		obj2.model = glm::mat4(1.0f);
+		obj2.model = glm::translate(obj2.model, glm::vec3(obj2.posX, obj2.posY, obj2.posZ));
+		if (obj2.rotateX)
+		{
+			obj2.model = glm::rotate(obj2.model, angle, glm::vec3(1.0f, 0.0f, 0.0f));
+		}
+		else if (obj2.rotateY)
+		{
+			obj2.model = glm::rotate(obj2.model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+		else if (obj2.rotateZ)
+		{
+			obj2.model = glm::rotate(obj2.model, angle, glm::vec3(0.0f, 0.0f, 1.0f));
+		}
+		obj2.model = glm::scale(obj2.model, glm::vec3(obj2.tamanhoEscala));
 
-		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
-		glBindVertexArray(obj.VAO); // Conectando ao buffer de geometria
-		glBindTexture(GL_TEXTURE_2D, obj.texID); //conectando com o buffer de textura que será usado no draw
+		// Aplicar cor no selecionado se for 1
+		if (objSelecionado == 1)
+		{
+			glUniform1i(glGetUniformLocation(shaderID, "objSelecionado"), 1);
+		}
+		else
+		{
+			glUniform1i(glGetUniformLocation(shaderID, "objSelecionado"), 0);
+		}
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(obj.model));
+		glBindVertexArray(obj.VAO);
+		glBindTexture(GL_TEXTURE_2D, obj.texID);
 		glDrawArrays(GL_TRIANGLES, 0, obj.nVertices);
-		
-		glBindVertexArray(obj2.VAO); // Conectando ao buffer de geometria
-		glBindTexture(GL_TEXTURE_2D, obj2.texID); //conectando com o buffer de textura que será usado no draw
+
+		// Aplicar cor no selecionado se for 2
+		if (objSelecionado == 2)
+		{
+			glUniform1i(glGetUniformLocation(shaderID, "objSelecionado"), 2);
+		}
+		else
+		{
+			glUniform1i(glGetUniformLocation(shaderID, "objSelecionado"), 0);
+		}
+		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(obj2.model));
+		glBindVertexArray(obj2.VAO);
+		glBindTexture(GL_TEXTURE_2D, obj2.texID);
 		glDrawArrays(GL_TRIANGLES, 0, obj2.nVertices);
 
 		glBindVertexArray(0); // Desconectando o buffer de geometria
@@ -256,77 +279,76 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 	if (key == GLFW_KEY_1 && action == GLFW_PRESS)
 	{
 		objSelecionado = 1;
+		cout << "Obj selecionado: " << objSelecionado << endl;
 	}
 
 	if (key == GLFW_KEY_2 && action == GLFW_PRESS)
 	{
 		objSelecionado = 2;
+		cout << "Obj selecionado: " << objSelecionado << endl;
 	}
+
+	Object* objAtual = (objSelecionado == 1) ? &obj : &obj2;
 
 	if (key == GLFW_KEY_X && action == GLFW_PRESS)
 	{
-		rotateX = true;
-		rotateY = false;
-		rotateZ = false;
+		objAtual->rotateX = true;
+		objAtual->rotateY = false;
+		objAtual->rotateZ = false;
 	}
 
 	if (key == GLFW_KEY_Y && action == GLFW_PRESS)
 	{
-		rotateX = false;
-		rotateY = true;
-		rotateZ = false;
+		objAtual->rotateX = false;
+		objAtual->rotateY = true;
+		objAtual->rotateZ = false;
 	}
 
 	if (key == GLFW_KEY_Z && action == GLFW_PRESS)
 	{
-		rotateX = false;
-		rotateY = false;
-		rotateZ = true;
+		objAtual->rotateX = false;
+		objAtual->rotateY = false;
+		objAtual->rotateZ = true;
 	}
 
 	if (key == GLFW_KEY_W && action == GLFW_PRESS) 
 	{
-		posY += 0.1f;
+		objAtual->posY += 0.1f;
 	}
 
     if (key == GLFW_KEY_S && action == GLFW_PRESS) 
 	{
-		posY -= 0.1f;
+		objAtual->posY -= 0.1f;
 	}
 
     if (key == GLFW_KEY_A && action == GLFW_PRESS) 
 	{
-		posX -= 0.1f;
+		objAtual->posX -= 0.1f;
 	}
 
     if (key == GLFW_KEY_D && action == GLFW_PRESS) 
 	{
-		posX += 0.1f;
+		objAtual->posX += 0.1f;
 	}
 
     if (key == GLFW_KEY_Q && action == GLFW_PRESS) 
 	{
-		posZ += 0.1f;
+		objAtual->posZ += 0.1f;
 	}
 	
     if (key == GLFW_KEY_E && action == GLFW_PRESS) 
 	{
-		posZ -= 0.1f;
+		objAtual->posZ -= 0.1f;
 	}
 
 	if (key == GLFW_KEY_U && action == GLFW_PRESS)
 	{
-		tamanhoEscala += 0.1f;
+		objAtual->tamanhoEscala += 0.1f;
 	}
 
 	if (key == GLFW_KEY_H && action == GLFW_PRESS)
 	{
-		if (tamanhoEscala < 0.1f)
-		{
-			tamanhoEscala = 0.1f;
-		}
-
-		tamanhoEscala -= 0.1f;
+		objAtual->tamanhoEscala = std::max(0.1f, objAtual->tamanhoEscala - 0.1f);
 	}
 }
 
